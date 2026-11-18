@@ -1,3 +1,6 @@
+// ==========================================
+// FILE: api/index.js (Update API Lo)
+// ==========================================
 const axios = require('axios');
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -41,13 +44,39 @@ const proxied = async (target) => {
 
 const abs = (v) => (v ? (/^https?:/i.test(v) ? v : CDN + v) : null);
 
+// FUNGSI BARU: Resolve link pendek vt.tiktok.com ke link panjang
+const resolveUrl = async (url) => {
+  try {
+    const res = await axios.get(url, {
+      maxRedirects: 0,
+      validateStatus: (status) => status >= 200 && status < 400,
+      headers: { "User-Agent": UA }
+    });
+    if (res.headers.location) {
+      return res.headers.location;
+    }
+  } catch (e) {
+    if (e.response && e.response.headers && e.response.headers.location) {
+      return e.response.headers.location;
+    }
+  }
+  return url; // Kalo gagal resolve, balikin link aslinya
+};
+
 const tiktokDl = async (url) => {
   const start = Date.now();
-  if (!url || !/(tiktok\.com|^\d+$)/i.test(String(url).trim())) {
+  let cleanUrl = String(url).trim();
+  
+  if (!cleanUrl || !/(tiktok\.com|^\d+$)/i.test(cleanUrl)) {
     throw new Error("URL TikTok tidak valid.");
   }
 
-  const endpoint = `${BASE}?url=${encodeURIComponent(String(url).trim())}&hd=1`;
+  // Resolve dulu kalo linknya pendek
+  if (cleanUrl.includes('vt.tiktok.com') || cleanUrl.includes('vm.tiktok.com')) {
+    cleanUrl = await resolveUrl(cleanUrl);
+  }
+
+  const endpoint = `${BASE}?url=${encodeURIComponent(cleanUrl)}&hd=1`;
   const json = (await direct(endpoint)) || (await proxied(endpoint));
 
   if (!json) throw new Error("Gagal terhubung ke server tikwm (timeout/rate-limit).");
